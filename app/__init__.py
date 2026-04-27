@@ -1,0 +1,1 @@
+"""Unbake lyrics sync package."""

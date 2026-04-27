@@ -1,0 +1,18 @@
+### Healthcheck
+GET http://localhost:8000/healthz
+
+### Create job
+POST http://localhost:8000/v1/lyrics/jobs
+Content-Type: application/json
+
+{
+  "audio_url": "https://example-bucket.s3.amazonaws.com/presigned",
+  "language_hint": "en",
+  "track_name": "Someone Like You",
+  "artist_name": "Adele",
+  "duration_ms": 285000,
+  "is_custom_cover": false
+}
+
+### Poll job
+GET http://localhost:8000/v1/lyrics/jobs/replace-with-job-id

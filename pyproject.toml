@@ -1,0 +1,31 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "unbake-lyrics-sync"
+version = "0.1.0"
+description = "Take-home solution for timestamped lyrics extraction from isolated vocals"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+  "fastapi>=0.115.0",
+  "httpx>=0.27.0",
+  "pydantic>=2.9.0",
+  "pydantic-settings>=2.5.0",
+  "uvicorn>=0.30.0",
+]
+
+[project.optional-dependencies]
+asr = [
+  "faster-whisper>=1.2.0",
+  "torch>=2.4.0",
+  "whisperx>=3.8.0",
+]
+dev = [
+  "pytest>=8.3.0",
+]
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["app*", "evaluation*"]
