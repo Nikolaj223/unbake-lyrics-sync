@@ -30,13 +30,13 @@ Request:
 
 ```json
 {
-  "audio_url": "https://bucket.example.com/presigned-url",
-  "language_hint": "en",
-  "track_name": "Someone Like You",
-  "artist_name": "Adele",
-  "duration_ms": 285000,
-  "shazam_track_id": "optional",
-  "is_custom_cover": false
+  "audioUrl": "https://bucket.example.com/presigned-url",
+  "languageHint": "en",
+  "trackName": "Someone Like You",
+  "artistName": "Adele",
+  "durationMs": 285000,
+  "shazamTrackId": "optional",
+  "isCustomCover": false
 }
 ```
 
@@ -44,9 +44,9 @@ Response:
 
 ```json
 {
-  "job_id": "c3a5...",
+  "jobId": "c3a5...",
   "status": "queued",
-  "status_url": "/v1/lyrics/jobs/c3a5..."
+  "statusUrl": "/v1/lyrics/jobs/c3a5..."
 }
 ```
 
@@ -56,17 +56,17 @@ Completed response:
 
 ```json
 {
-  "job_id": "c3a5...",
+  "jobId": "c3a5...",
   "status": "completed",
   "result": {
     "language": "en",
     "source": "asr_baseline",
-    "plain_lyrics": "Hello from the other side\nI must have called a thousand times",
-    "synced_lyrics": "[00:00.12] Hello from the other side\n[00:03.44] I must have called a thousand times",
+    "plainLyrics": "Hello from the other side\nI must have called a thousand times",
+    "syncedLyrics": "[00:00.12] Hello from the other side\n[00:03.44] I must have called a thousand times",
     "words": [
-      { "text": "Hello", "start_ms": 120, "end_ms": 480, "confidence": 0.97 }
+      { "text": "Hello", "startMs": 120, "endMs": 480, "confidence": 0.97 }
     ],
-    "cost_estimate_usd": 0.0032
+    "costEstimateUsd": 0.0032
   }
 }
 ```
@@ -140,7 +140,7 @@ I would not ship the reference-only path first, because custom covers are explic
 - alignment: WhisperX forced alignment model per language
 - settings:
   - `beam_size=5`
-  - `condition_on_prev_text=False`
+  - disable previous-context conditioning when the installed WhisperX/faster-whisper version exposes that option
   - VAD enabled
 
 Why:
@@ -232,6 +232,7 @@ Conservative estimate:
 - 3 minute track
 - end-to-end GPU time for ASR + alignment: `20-25 sec`
 - compute cost: `25 * 0.00016 = $0.004`
+- the benchmark runner records actual `elapsed_seconds` and `cost_estimate_usd` per clip, so this estimate is checked against the real run instead of staying a spreadsheet guess
 
 Add CPU, storage, transfer margin:
 
@@ -274,7 +275,7 @@ Why:
 
 Mitigation:
 
-- `condition_on_prev_text=False`
+- avoid previous-context conditioning where supported by the installed ASR backend
 - VAD before transcription
 - language hint if available
 - reject very low-confidence tails
@@ -325,7 +326,14 @@ Need at least:
 - `timestamp_p90_ms`
 - `mean_iou` of token intervals
 
-This is why the repo includes Python evaluation code instead of only qualitative examples.
+The repo has two evaluation steps:
+
+1. `python -m evaluation.run_asr --manifest ./datasets/benchmark_manifest.jsonl --output ./results/predictions.jsonl --metrics-output ./results/metrics.json --markdown-output ./docs/evaluation-results.md`
+2. `python -m evaluation.cli --manifest ./results/predictions.jsonl --output ./results/metrics.json --markdown-output ./docs/evaluation-results.md`
+
+The first command runs the real WhisperX baseline on `htdemucs v4` clips and stores exact predictions. The second command re-scores those predictions without paying GPU cost again.
+
+The benchmark manifest should contain at least one checked sample for each required language: `fr`, `it`, `ru`, `en`, `pt`, `es`, `ja`, `pl`. Word-level references can be smaller than text references, but they are necessary to make timestamp claims.
 
 ## 13. What success looks like
 

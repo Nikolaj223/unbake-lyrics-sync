@@ -1,60 +1,82 @@
 # Dataset Notes
 
-The take-home explicitly asks for evaluation on vocals separated with `htdemucs v4` (not `ft`), because the stem still contains artifacts and backing vocals.
+The benchmark must use vocals separated with `htdemucs v4`, not `htdemucs_ft`. Regular speech audio is not representative because the real input contains music bleed, reverb, doubled vocals, and Demucs artifacts.
 
-## Recommended manifest schema
+## Benchmark manifest
 
-Each line in `manifest.jsonl` should look like:
+`evaluation.run_asr` expects one JSON object per line:
 
 ```json
 {
-  "id": "sample-en-001",
+  "id": "en-001",
   "language": "en",
+  "audioPath": "./datasets/benchmark/en-001/vocals.m4a",
+  "trackName": "optional title",
+  "artistName": "optional artist",
+  "durationMs": 45000,
   "reference": {
     "text": "hello from the other side",
     "words": [
       { "text": "hello", "start_ms": 120, "end_ms": 480 },
       { "text": "from", "start_ms": 500, "end_ms": 680 }
     ]
-  },
-  "prediction": {
-    "text": "hello from the other side",
-    "words": [
-      { "text": "hello", "start_ms": 100, "end_ms": 470 },
-      { "text": "from", "start_ms": 515, "end_ms": 700 }
-    ]
   }
 }
 ```
 
-## Practical curation plan
+Use `audioUrl` instead of `audioPath` when the clip is reachable by presigned URL.
 
-1. Take the provided vocals split with `htdemucs v4`.
-2. Keep language-balanced slices for:
-   - `FR`
-   - `IT`
-   - `RU`
-   - `EN`
-   - `PT`
-   - `ES`
-   - `JP`
-   - `PL`
-3. Prefer 30-60 second clips first, because they are faster to annotate and compare.
-4. Build references in two layers:
-   - `reference.text` for transcript quality
-   - `reference.words[]` for timestamp quality
-5. For Japanese, evaluate both:
-   - character-level quality by default
-   - optional word segmentation if the annotation tooling already provides it
+## Scored predictions manifest
 
-## Why the dataset matters
+`evaluation.run_asr` writes the format consumed by `evaluation.cli`:
 
-This problem is not regular speech-to-text. Demucs stems contain:
+```json
+{
+  "id": "en-001",
+  "language": "en",
+  "reference": {
+    "text": "hello from the other side",
+    "words": [
+      { "text": "hello", "start_ms": 120, "end_ms": 480 }
+    ]
+  },
+  "prediction": {
+    "text": "hello from the other side",
+    "syncedLyrics": "[00:00.12] hello from the other side",
+    "words": [
+      { "text": "hello", "start_ms": 100, "end_ms": 470, "confidence": 0.97 }
+    ]
+  },
+  "runtime": {
+    "elapsed_seconds": 22.4,
+    "cost_estimate_usd": 0.003584,
+    "model": "large-v3",
+    "device": "cuda",
+    "duration_ms": 45000
+  }
+}
+```
 
-- musical bleed
-- chorus stacks
-- reverbs
-- compression artifacts
-- partially missing consonants
+## Minimum split
 
-So offline evaluation on ordinary speech datasets would give misleadingly optimistic numbers.
+Use at least one short clip per required language:
+
+- `fr`
+- `it`
+- `ru`
+- `en`
+- `pt`
+- `es`
+- `ja`
+- `pl`
+
+For the first pass, 30-60 second clips are enough. They keep annotation cheap while still exposing the hard parts: chorus stacks, reverbs, bleed, missing consonants, and language detection mistakes.
+
+## References
+
+Build references in two layers:
+
+- `reference.text` from manually checked lyrics for transcript quality
+- `reference.words[]` for a smaller manually aligned subset
+
+For Japanese, score CER/character tokens by default. Add word segmentation only if the annotation tooling already gives consistent word boundaries.

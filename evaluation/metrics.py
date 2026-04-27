@@ -134,12 +134,33 @@ def evaluate_record(record: dict[str, object]) -> dict[str, object]:
         **cer_metrics,
     }
 
+    runtime = record.get("runtime")
+    if isinstance(runtime, dict):
+        if runtime.get("elapsed_seconds") is not None:
+            output["elapsed_seconds"] = float(runtime["elapsed_seconds"])
+        if runtime.get("cost_estimate_usd") is not None:
+            output["cost_estimate_usd"] = float(runtime["cost_estimate_usd"])
+
     if reference.get("words") and prediction.get("words"):
-        ref_words = [TimestampedToken(**token) for token in reference["words"]]
-        hyp_words = [TimestampedToken(**token) for token in prediction["words"]]
+        ref_words = parse_timestamped_tokens(reference["words"])
+        hyp_words = parse_timestamped_tokens(prediction["words"])
         output.update(timestamp_metrics(ref_words, hyp_words, language))
 
     return output
+
+
+def parse_timestamped_tokens(tokens: object) -> list[TimestampedToken]:
+    parsed: list[TimestampedToken] = []
+    for token in tokens:  # type: ignore[union-attr]
+        item = dict(token)
+        parsed.append(
+            TimestampedToken(
+                text=str(item["text"]),
+                start_ms=int(item.get("start_ms", item.get("startMs"))),
+                end_ms=int(item.get("end_ms", item.get("endMs"))),
+            )
+        )
+    return parsed
 
 
 def aggregate(records: Iterable[dict[str, object]]) -> dict[str, object]:
@@ -166,13 +187,28 @@ def aggregate(records: Iterable[dict[str, object]]) -> dict[str, object]:
     mean_iou_values = collect_numeric("mean_iou")
     if mean_iou_values:
         summary["mean_iou"] = statistics.fmean(mean_iou_values)
+    elapsed_values = collect_numeric("elapsed_seconds")
+    if elapsed_values:
+        summary["mean_elapsed_seconds"] = statistics.fmean(elapsed_values)
+        summary["p90_elapsed_seconds"] = percentile(elapsed_values, 90)
+    cost_values = collect_numeric("cost_estimate_usd")
+    if cost_values:
+        summary["mean_cost_estimate_usd"] = statistics.fmean(cost_values)
+        summary["total_cost_estimate_usd"] = sum(cost_values)
 
     return summary
 
 
+def aggregate_by_language(records: Iterable[dict[str, object]]) -> dict[str, dict[str, object]]:
+    grouped: dict[str, list[dict[str, object]]] = {}
+    for row in records:
+        grouped.setdefault(str(row["language"]), []).append(row)
+    return {language: aggregate(rows) for language, rows in sorted(grouped.items())}
+
+
 def load_manifest(path: str | Path) -> list[dict[str, object]]:
     rows: list[dict[str, object]] = []
-    with Path(path).open("r", encoding="utf-8") as file_handle:
+    with Path(path).open("r", encoding="utf-8-sig") as file_handle:
         for line in file_handle:
             stripped = line.strip()
             if not stripped:
@@ -238,7 +274,7 @@ def interval_iou(start_a: int, end_a: int, start_b: int, end_b: int) -> float:
     return intersection / union if union else 0.0
 
 
-def percentile(values: list[int], p: int) -> float:
+def percentile(values: list[float] | list[int], p: int) -> float:
     ordered = sorted(values)
     if len(ordered) == 1:
         return float(ordered[0])

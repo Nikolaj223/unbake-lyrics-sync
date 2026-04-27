@@ -1,73 +1,96 @@
 # Unbake Lyrics Sync
 
-Take-home solution for `timestamped lyrics from isolated vocals`.
+Take-home solution for timestamped lyrics from `htdemucs v4` vocal stems.
 
 ## What is inside
 
-- short design doc: [docs/design.md](./docs/design.md)
-- reviewer checklist: [docs/reviewer-checklist.md](./docs/reviewer-checklist.md)
+- design doc: [docs/design.md](./docs/design.md)
+- benchmark protocol and result table: [docs/evaluation-results.md](./docs/evaluation-results.md)
+- FastAPI async job API: [app/main.py](./app/main.py)
+- WhisperX/faster-whisper baseline: [app/pipeline/transcription.py](./app/pipeline/transcription.py)
+- real ASR benchmark runner: [evaluation/run_asr.py](./evaluation/run_asr.py)
+- scoring code: [evaluation/metrics.py](./evaluation/metrics.py)
+- dataset manifest format: [datasets/README.md](./datasets/README.md)
 - production Postgres sketch: [docs/postgres-schema.sql](./docs/postgres-schema.sql)
-- FastAPI skeleton for async job API: [app/main.py](./app/main.py)
-- ASR pipeline baseline with `WhisperX + faster-whisper`: [app/pipeline/transcription.py](./app/pipeline/transcription.py)
-- evaluation code for text and timestamp quality: [evaluation/metrics.py](./evaluation/metrics.py)
-- dataset manifest format and curation notes: [datasets/README.md](./datasets/README.md)
 
-## Proposed API shape
+## API shape
 
 - `POST /v1/lyrics/jobs`
-- `GET /v1/lyrics/jobs/{job_id}`
+- `GET /v1/lyrics/jobs/{jobId}`
 - `GET /healthz`
 
-The API is asynchronous on purpose: mobile clients should not wait on a long request while audio is downloaded, normalized, transcribed and aligned.
+Request fields accept camelCase and snake_case. Responses use camelCase to stay close to LRCLib naming:
 
-For the take-home code the repository is intentionally in-memory, but the Postgres schema I would use in production is included separately.
+```json
+{
+  "jobId": "c3a5...",
+  "status": "completed",
+  "result": {
+    "language": "en",
+    "source": "asr_baseline",
+    "plainLyrics": "Hello from the other side",
+    "syncedLyrics": "[00:00.12] Hello from the other side",
+    "words": [
+      { "text": "Hello", "startMs": 120, "endMs": 480, "confidence": 0.97 }
+    ],
+    "costEstimateUsd": 0.004
+  }
+}
+```
 
-## Core idea
+## Pipeline
 
-The production recommendation in the design doc is:
+1. Accept `m4a 256 kbps` from an S3 presigned URL.
+2. Normalize internally to `wav 16 kHz mono pcm_s16le`.
+3. Run WhisperX with faster-whisper and forced alignment.
+4. Return `plainLyrics`, `syncedLyrics`, and word timestamps.
+5. Score real outputs with `WER`, `CER`, hallucination rate, timestamp MAE/P90, IoU, latency, and estimated cost.
 
-1. accept `m4a` presigned URL
-2. normalize internally to `wav 16 kHz mono pcm_s16le`
-3. run `WhisperX` for multilingual ASR + word alignment
-4. format output into `plainLyrics`, `syncedLyrics` and `words[]`
-5. measure quality with `WER/CER + timestamp MAE/P90 + hallucination rate`
+## Setup
 
-There is also a product direction for a hybrid path with catalog hints, but the baseline code here intentionally stays simple and reliable.
+Requirements:
 
-## Why convert away from M4A
-
-Keep `m4a` at the API boundary because that is what the client already has after Demucs.
-
-Convert internally to `wav` because:
-
-- alignment tools work more predictably on PCM audio
-- it removes codec ambiguity during evaluation
-- it gives deterministic preprocessing for all languages
-
-## Quick start
+- Python 3.11 or 3.12
+- ffmpeg and ffprobe in `PATH`
+- CUDA GPU for the recommended `large-v3` benchmark
 
 ```bash
 python -m venv .venv
 . .venv/bin/activate
-pip install -e ".[dev]"
+pip install -e ".[dev,asr]"
 cp .env.example .env
+pytest -q
+```
+
+Run the API:
+
+```bash
 uvicorn app.main:app --reload
 ```
 
-Optional ASR extras:
+## Benchmark
+
+Create `datasets/benchmark_manifest.jsonl` from the provided Yandex Disk vocals or your own clips separated with `htdemucs v4`, not `ft`. Keep at least one sample per required language: `fr`, `it`, `ru`, `en`, `pt`, `es`, `ja`, `pl`.
+
+Run the actual ASR baseline:
 
 ```bash
-pip install -e ".[dev,asr]"
+python -m evaluation.run_asr \
+  --manifest ./datasets/benchmark_manifest.jsonl \
+  --output ./results/predictions.jsonl \
+  --metrics-output ./results/metrics.json \
+  --markdown-output ./docs/evaluation-results.md \
+  --device cuda \
+  --model large-v3
 ```
 
-## Evaluate predictions
-
-Input format is `jsonl` with one sample per line.
+Re-score existing predictions:
 
 ```bash
-python -m evaluation.cli --manifest ./datasets/manifest.example.jsonl
+python -m evaluation.cli \
+  --manifest ./results/predictions.jsonl \
+  --output ./results/metrics.json \
+  --markdown-output ./docs/evaluation-results.md
 ```
 
-## Important note
-
-In this working environment `python` is not available in `PATH`, so the project files and tests were prepared carefully but not executed here locally. The deliverable is structured so it can be run on a normal Python 3.11+ machine.
+The design is intentionally tied to this run: without measured rows in [docs/evaluation-results.md](./docs/evaluation-results.md), the cost/accuracy claims are not defensible.

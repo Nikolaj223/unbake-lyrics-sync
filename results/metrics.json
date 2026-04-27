@@ -1,0 +1,68 @@
+{
+  "summary": {
+    "samples": 2,
+    "mean_wer": 0.915,
+    "mean_cer": 0.34482886904761906,
+    "mean_hallucination_rate": 0.3238095238095238,
+    "mean_elapsed_seconds": 131.667,
+    "p90_elapsed_seconds": 136.9446,
+    "mean_cost_estimate_usd": 0.021066500000000002,
+    "total_cost_estimate_usd": 0.042133000000000004
+  },
+  "by_language": {
+    "en": {
+      "samples": 1,
+      "mean_wer": 1.5,
+      "mean_cer": 0.5166666666666667,
+      "mean_hallucination_rate": 0.5333333333333333,
+      "mean_elapsed_seconds": 138.264,
+      "p90_elapsed_seconds": 138.264,
+      "mean_cost_estimate_usd": 0.022122,
+      "total_cost_estimate_usd": 0.022122
+    },
+    "ru": {
+      "samples": 1,
+      "mean_wer": 0.33,
+      "mean_cer": 0.17299107142857142,
+      "mean_hallucination_rate": 0.11428571428571428,
+      "mean_elapsed_seconds": 125.07,
+      "p90_elapsed_seconds": 125.07,
+      "mean_cost_estimate_usd": 0.020011,
+      "total_cost_estimate_usd": 0.020011
+    }
+  },
+  "rows": [
+    {
+      "id": "ru-001",
+      "language": "ru",
+      "wer": 0.33,
+      "substitutions": 28,
+      "insertions": 24,
+      "deletions": 14,
+      "reference_tokens": 200,
+      "hypothesis_tokens": 210,
+      "hallucination_rate": 0.11428571428571428,
+      "cer": 0.17299107142857142,
+      "reference_chars": 896,
+      "hypothesis_chars": 975,
+      "elapsed_seconds": 125.07,
+      "cost_estimate_usd": 0.020011
+    },
+    {
+      "id": "en-001",
+      "language": "en",
+      "wer": 1.5,
+      "substitutions": 3,
+      "insertions": 8,
+      "deletions": 1,
+      "reference_tokens": 8,
+      "hypothesis_tokens": 15,
+      "hallucination_rate": 0.5333333333333333,
+      "cer": 0.5166666666666667,
+      "reference_chars": 60,
+      "hypothesis_chars": 74,
+      "elapsed_seconds": 138.264,
+      "cost_estimate_usd": 0.022122
+    }
+  ]
+}

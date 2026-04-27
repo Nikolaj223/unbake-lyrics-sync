@@ -38,6 +38,32 @@ class AudioPreprocessor:
             duration_ms=duration_ms,
         )
 
+    def prepare_local_file(self, source_path: str) -> AudioAsset:
+        original_path = Path(source_path).expanduser().resolve()
+        if not original_path.exists():
+            raise FileNotFoundError(f"Audio file does not exist: {original_path}")
+
+        workdir = Path(tempfile.mkdtemp(prefix="unbake_", dir=self.tmp_dir))
+        downloaded_path = workdir / f"input{original_path.suffix or '.audio'}"
+        normalized_path = workdir / "normalized.wav"
+
+        shutil.copyfile(original_path, downloaded_path)
+        self._transcode(downloaded_path, normalized_path)
+        duration_ms = self._probe_duration_ms(normalized_path)
+
+        if duration_ms and duration_ms > self.max_audio_duration_sec * 1000:
+            raise ValueError(
+                f"Audio is too long: {duration_ms} ms exceeds limit {self.max_audio_duration_sec * 1000} ms"
+            )
+
+        return AudioAsset(
+            source_url=str(original_path),
+            downloaded_path=str(downloaded_path),
+            normalized_path=str(normalized_path),
+            original_format=original_path.suffix.lstrip(".") or "unknown",
+            duration_ms=duration_ms,
+        )
+
     def cleanup(self, asset: AudioAsset) -> None:
         workdir = Path(asset.downloaded_path).parent
         if workdir.exists():

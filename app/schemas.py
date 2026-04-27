@@ -1,9 +1,19 @@
 from datetime import datetime
 from typing import Literal
-from pydantic import BaseModel, Field, HttpUrl
+
+from pydantic import BaseModel, ConfigDict, Field, HttpUrl
 
 
-class CreateLyricsJobRequest(BaseModel):
+def to_camel(value: str) -> str:
+    head, *tail = value.split("_")
+    return head + "".join(part.capitalize() for part in tail)
+
+
+class APIModel(BaseModel):
+    model_config = ConfigDict(alias_generator=to_camel, populate_by_name=True)
+
+
+class CreateLyricsJobRequest(APIModel):
     audio_url: HttpUrl
     language_hint: str | None = Field(default=None, description="ISO language hint, e.g. en/ru/es/ja")
     track_name: str | None = None
@@ -14,14 +24,14 @@ class CreateLyricsJobRequest(BaseModel):
     is_custom_cover: bool = False
 
 
-class WordTimestamp(BaseModel):
+class WordTimestamp(APIModel):
     text: str
     start_ms: int
     end_ms: int
     confidence: float | None = None
 
 
-class LyricsPayload(BaseModel):
+class LyricsPayload(APIModel):
     language: str
     source: Literal["asr_baseline", "catalog_reference", "hybrid_reference_alignment"]
     plain_lyrics: str
@@ -31,13 +41,13 @@ class LyricsPayload(BaseModel):
     debug: dict[str, object] = Field(default_factory=dict)
 
 
-class LyricsJobAcceptedResponse(BaseModel):
+class LyricsJobAcceptedResponse(APIModel):
     job_id: str
     status: Literal["queued"]
     status_url: str
 
 
-class LyricsJobStatusResponse(BaseModel):
+class LyricsJobStatusResponse(APIModel):
     job_id: str
     status: Literal["queued", "processing", "completed", "failed"]
     created_at: datetime
